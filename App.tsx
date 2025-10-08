@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Position, Size, ImageOverlay, WebcamOverlay, Overlay, OverlayBorder, VideoOverlay } from './types';
+import { Position, Size, ImageOverlay, WebcamOverlay, Overlay, OverlayBorder, VideoOverlay, GraphicOverlay } from './types';
 import Toolbar from './components/Toolbar';
 import OverlayItem from './components/OverlayItem';
 import { ScreenShareIcon, EyeOffIcon } from './components/icons';
@@ -46,7 +46,7 @@ const App: React.FC = () => {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
-          audio: true,
+          audio: false,
         });
 
         const videoTrack = stream.getVideoTracks()[0];
@@ -243,6 +243,31 @@ const App: React.FC = () => {
       }
     });
   };
+
+  const handleAddGraphic = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const src = e.target?.result as string;
+        if (!src) return;
+
+        const newGraphic: GraphicOverlay = {
+            id: `graphic_${Date.now()}`,
+            type: 'graphic',
+            src,
+            position: { x: 150, y: 150 },
+            size: { width: 300, height: 200 },
+            zIndex: getNextZIndex(),
+            border: {
+                color: '#ffffff',
+                width: 0,
+                style: 'solid',
+                radius: 0,
+            },
+        };
+        setOverlays(prev => [...prev, newGraphic]);
+    };
+    reader.readAsDataURL(file);
+  };
   
   const handleUpdateOverlay = useCallback((id: string, position: Position, size: Size) => {
     setOverlays(prev => prev.map(o => o.id === id ? { ...o, position, size } : o));
@@ -390,6 +415,7 @@ const App: React.FC = () => {
         onSelectWebcam={handleSelectWebcam}
         onStopWebcam={handleStopWebcam}
         onAddMedia={handleAddMedia}
+        onAddGraphic={handleAddGraphic}
         onToggleRecording={handleToggleRecording}
         onTogglePreview={handleTogglePreview}
         onEnumerateWebcams={handleEnumerateWebcams}

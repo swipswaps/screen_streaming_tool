@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { CameraIcon, MediaIcon, ScreenShareIcon, RecordIcon, EyeIcon, EyeOffIcon } from './icons';
+import { CameraIcon, MediaIcon, ScreenShareIcon, RecordIcon, EyeIcon, EyeOffIcon, GraphicIcon } from './icons';
 
 interface ToolbarProps {
   isScreenSharing: boolean;
@@ -12,6 +12,7 @@ interface ToolbarProps {
   onSelectWebcam: (deviceId: string) => void;
   onStopWebcam: () => void;
   onAddMedia: (files: FileList) => void;
+  onAddGraphic: (file: File) => void;
   onToggleRecording: () => void;
   onTogglePreview: () => void;
   onEnumerateWebcams: () => void;
@@ -45,25 +46,41 @@ const Toolbar: React.FC<ToolbarProps> = ({
     onSelectWebcam,
     onStopWebcam,
     onAddMedia,
+    onAddGraphic,
     onToggleRecording,
     onTogglePreview,
     onEnumerateWebcams
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  const graphicFileInputRef = useRef<HTMLInputElement>(null);
   const [isWebcamMenuOpen, setIsWebcamMenuOpen] = useState(false);
   const webcamMenuRef = useRef<HTMLDivElement>(null);
 
   const handleAddMediaClick = () => {
-    fileInputRef.current?.click();
+    mediaFileInputRef.current?.click();
+  };
+  
+  const handleAddGraphicClick = () => {
+    graphicFileInputRef.current?.click();
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
       onAddMedia(files);
     }
-    if(fileInputRef.current) {
-        fileInputRef.current.value = '';
+    if(mediaFileInputRef.current) {
+      mediaFileInputRef.current.value = '';
+    }
+  };
+
+  const handleGraphicFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      onAddGraphic(file);
+    }
+    if(graphicFileInputRef.current) {
+      graphicFileInputRef.current.value = '';
     }
   };
 
@@ -170,11 +187,23 @@ const Toolbar: React.FC<ToolbarProps> = ({
         </ToolbarButton>
         <input
           type="file"
-          ref={fileInputRef}
+          ref={mediaFileInputRef}
           className="hidden"
           accept="image/*,video/*"
-          onChange={handleFileChange}
+          onChange={handleMediaFileChange}
           multiple
+        />
+
+        <ToolbarButton onClick={handleAddGraphicClick} title="Add Graphic">
+          <GraphicIcon />
+          <span>Graphic</span>
+        </ToolbarButton>
+        <input
+          type="file"
+          ref={graphicFileInputRef}
+          className="hidden"
+          accept="image/*"
+          onChange={handleGraphicFileChange}
         />
       </div>
     </div>

@@ -33,6 +33,11 @@ export interface VideoOverlay extends BaseOverlay {
   src: string;
 }
 
+export interface GraphicOverlay extends BaseOverlay {
+  type: 'graphic';
+  src: string;
+}
+
 export interface WebcamOverlay extends BaseOverlay {
   id: 'webcam';
   type: 'webcam';
@@ -41,4 +46,4 @@ export interface WebcamOverlay extends BaseOverlay {
   isFullScreen: boolean;
 }
 
-export type Overlay = ImageOverlay | WebcamOverlay | VideoOverlay;
+export type Overlay = ImageOverlay | WebcamOverlay | VideoOverlay | GraphicOverlay;

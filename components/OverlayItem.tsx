@@ -1,10 +1,10 @@
 import React, { useRef, useEffect } from 'react';
-import { ImageOverlay, WebcamOverlay, VideoOverlay, Position, Size } from '../types';
+import { ImageOverlay, WebcamOverlay, VideoOverlay, Position, Size, GraphicOverlay } from '../types';
 import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon, SettingsIcon, ArrowLeftIcon, ArrowRightIcon } from './icons';
 import DraggableResizableFrame from './DraggableResizableFrame';
 
 interface OverlayItemProps {
-  overlay: ImageOverlay | WebcamOverlay | VideoOverlay;
+  overlay: ImageOverlay | WebcamOverlay | VideoOverlay | GraphicOverlay;
   onUpdate: (id: string, pos: Position, size: Size) => void;
   onDelete: (id: string) => void;
   onFocus: (id: string) => void;
@@ -27,8 +27,6 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const isWebcam = overlay.type === 'webcam';
   const webcamOverlay = isWebcam ? (overlay as WebcamOverlay) : null;
-  const imageOverlay = overlay.type === 'image' ? (overlay as ImageOverlay) : null;
-  const videoOverlay = overlay.type === 'video' ? (overlay as VideoOverlay) : null;
 
   useEffect(() => {
     if (isWebcam && videoRef.current && webcamOverlay?.stream) {
@@ -62,7 +60,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
       isFullScreen={isWebcam ? webcamOverlay?.isFullScreen ?? false : false}
     >
       <div className="absolute top-1 right-1 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {onCycleSource && (
+        {onCycleSource && overlay.type !== 'graphic' && (
           <>
             <button 
               onClick={() => onCycleSource(overlay.id, 'previous')}
@@ -106,18 +104,18 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
             <CloseIcon />
         </button>
       </div>
-      {overlay.type === 'image' && imageOverlay && (
+      {(overlay.type === 'image' || overlay.type === 'graphic') && (
         <img
-          src={imageOverlay.src}
+          src={(overlay as ImageOverlay | GraphicOverlay).src}
           className="w-full h-full object-cover pointer-events-none"
           alt="Overlay"
           draggable={false}
           style={overlayStyles}
         />
       )}
-       {overlay.type === 'video' && videoOverlay && (
+       {overlay.type === 'video' && (
         <video
-          src={videoOverlay.src}
+          src={(overlay as VideoOverlay).src}
           className="w-full h-full object-cover pointer-events-none"
           autoPlay
           loop
