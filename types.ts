@@ -15,26 +15,30 @@ export interface OverlayBorder {
   radius: number;
 }
 
-export interface ImageOverlay {
+interface BaseOverlay {
   id: string;
-  type: 'image';
-  src: string;
   position: Position;
   size: Size;
   zIndex: number;
   border: OverlayBorder;
 }
 
-export interface WebcamOverlay {
+export interface ImageOverlay extends BaseOverlay {
+  type: 'image';
+  src: string;
+}
+
+export interface VideoOverlay extends BaseOverlay {
+  type: 'video';
+  src: string;
+}
+
+export interface WebcamOverlay extends BaseOverlay {
   id: 'webcam';
   type: 'webcam';
   stream: MediaStream | null;
   deviceId?: string;
-  position: Position;
-  size: Size;
-  zIndex: number;
   isFullScreen: boolean;
-  border: OverlayBorder;
 }
 
-export type Overlay = ImageOverlay | WebcamOverlay;
+export type Overlay = ImageOverlay | WebcamOverlay | VideoOverlay;

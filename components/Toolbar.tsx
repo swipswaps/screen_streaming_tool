@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { CameraIcon, ImageIcon, ScreenShareIcon, RecordIcon, EyeIcon, EyeOffIcon } from './icons';
+import { CameraIcon, MediaIcon, ScreenShareIcon, RecordIcon, EyeIcon, EyeOffIcon } from './icons';
 
 interface ToolbarProps {
   isScreenSharing: boolean;
@@ -7,12 +7,14 @@ interface ToolbarProps {
   activeWebcamDeviceId?: string;
   isRecording: boolean;
   isPreviewVisible: boolean;
+  videoDevices: MediaDeviceInfo[];
   onToggleScreenShare: () => void;
   onSelectWebcam: (deviceId: string) => void;
   onStopWebcam: () => void;
-  onAddImage: (file: File) => void;
+  onAddMedia: (file: File) => void;
   onToggleRecording: () => void;
   onTogglePreview: () => void;
+  onEnumerateWebcams: () => void;
 }
 
 const ToolbarButton: React.FC<{ onClick?: () => void; children: React.ReactNode; isActive?: boolean; title: string; disabled?: boolean; ref?: React.Ref<HTMLButtonElement> }> = React.forwardRef(({ onClick, children, isActive, title, disabled }, ref) => (
@@ -38,27 +40,27 @@ const Toolbar: React.FC<ToolbarProps> = ({
     activeWebcamDeviceId,
     isRecording,
     isPreviewVisible,
+    videoDevices,
     onToggleScreenShare, 
     onSelectWebcam,
     onStopWebcam,
-    onAddImage,
+    onAddMedia,
     onToggleRecording,
-    onTogglePreview
+    onTogglePreview,
+    onEnumerateWebcams
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isWebcamMenuOpen, setIsWebcamMenuOpen] = useState(false);
-  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const webcamMenuRef = useRef<HTMLDivElement>(null);
 
-  const handleAddImageClick = () => {
+  const handleAddMediaClick = () => {
     fileInputRef.current?.click();
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      onAddImage(file);
+      onAddMedia(file);
     }
     if(fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -67,19 +69,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   const handleWebcamButtonClick = async () => {
     if (!isWebcamMenuOpen) {
-      setIsLoadingDevices(true);
+      onEnumerateWebcams();
       setIsWebcamMenuOpen(true);
-      try {
-        // Ensure we have permission before enumerating, as some browsers require it for labels
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        stream.getTracks().forEach(track => track.stop());
-      } catch (err) {
-        console.error("Error getting camera permissions:", err);
-      }
-      
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
-      setIsLoadingDevices(false);
     } else {
         setIsWebcamMenuOpen(false);
     }
@@ -144,9 +135,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           {isWebcamMenuOpen && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-2 z-50 text-sm">
               <p className="font-bold text-gray-300 px-2 pb-2">Select Camera Source</p>
-              {isLoadingDevices ? (
-                 <p className="text-gray-400 px-2 py-1">Loading cameras...</p>
-              ) : videoDevices.length > 0 ? (
+              {videoDevices.length > 0 ? (
                 <ul>
                   {videoDevices.map((device, index) => (
                     <li key={device.deviceId}>
@@ -175,15 +164,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
           )}
         </div>
         
-        <ToolbarButton onClick={handleAddImageClick} title="Add Image Graphic">
-          <ImageIcon />
-          <span>Image</span>
+        <ToolbarButton onClick={handleAddMediaClick} title="Add Media">
+          <MediaIcon />
+          <span>Media</span>
         </ToolbarButton>
         <input
           type="file"
           ref={fileInputRef}
           className="hidden"
-          accept="image/png, image/jpeg, image/svg+xml"
+          accept="image/*,video/*"
           onChange={handleFileChange}
         />
       </div>

@@ -1,15 +1,16 @@
 import React, { useRef, useEffect } from 'react';
-import { ImageOverlay, WebcamOverlay, Position, Size } from '../types';
-import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon, SettingsIcon } from './icons';
+import { ImageOverlay, WebcamOverlay, VideoOverlay, Position, Size } from '../types';
+import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon, SettingsIcon, ArrowLeftIcon, ArrowRightIcon } from './icons';
 import DraggableResizableFrame from './DraggableResizableFrame';
 
 interface OverlayItemProps {
-  overlay: ImageOverlay | WebcamOverlay;
+  overlay: ImageOverlay | WebcamOverlay | VideoOverlay;
   onUpdate: (id: string, pos: Position, size: Size) => void;
   onDelete: (id: string) => void;
   onFocus: (id: string) => void;
   onToggleFullScreen?: (id: string) => void;
   onOpenSettings?: (id: string) => void;
+  onCycleSource?: (id: string, direction: 'next' | 'previous') => void;
   containerRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -20,12 +21,14 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
   onFocus,
   onToggleFullScreen,
   onOpenSettings,
+  onCycleSource,
   containerRef,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const isWebcam = overlay.type === 'webcam';
   const webcamOverlay = isWebcam ? (overlay as WebcamOverlay) : null;
   const imageOverlay = overlay.type === 'image' ? (overlay as ImageOverlay) : null;
+  const videoOverlay = overlay.type === 'video' ? (overlay as VideoOverlay) : null;
 
   useEffect(() => {
     if (isWebcam && videoRef.current && webcamOverlay?.stream) {
@@ -59,6 +62,24 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
       isFullScreen={isWebcam ? webcamOverlay?.isFullScreen ?? false : false}
     >
       <div className="absolute top-1 right-1 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {onCycleSource && (
+          <>
+            <button 
+              onClick={() => onCycleSource(overlay.id, 'previous')}
+              className="p-1 rounded-full bg-black bg-opacity-50 hover:bg-opacity-75 text-white"
+              title="Previous Source"
+            >
+              <ArrowLeftIcon />
+            </button>
+            <button 
+              onClick={() => onCycleSource(overlay.id, 'next')}
+              className="p-1 rounded-full bg-black bg-opacity-75 hover:bg-opacity-75 text-white"
+              title="Next Source"
+            >
+              <ArrowRightIcon />
+            </button>
+          </>
+        )}
         {onOpenSettings && (
           <button 
             onClick={() => onOpenSettings(overlay.id)}
@@ -88,9 +109,20 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
       {overlay.type === 'image' && imageOverlay && (
         <img
           src={imageOverlay.src}
-          className="w-full h-full object-contain pointer-events-none"
+          className="w-full h-full object-cover pointer-events-none"
           alt="Overlay"
           draggable={false}
+          style={overlayStyles}
+        />
+      )}
+       {overlay.type === 'video' && videoOverlay && (
+        <video
+          src={videoOverlay.src}
+          className="w-full h-full object-cover pointer-events-none"
+          autoPlay
+          loop
+          muted
+          playsInline
           style={overlayStyles}
         />
       )}

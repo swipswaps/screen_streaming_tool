@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Position, Size, ImageOverlay, WebcamOverlay, Overlay, OverlayBorder } from './types';
+import { Position, Size, ImageOverlay, WebcamOverlay, Overlay, OverlayBorder, VideoOverlay } from './types';
 import Toolbar from './components/Toolbar';
 import OverlayItem from './components/OverlayItem';
 import { ScreenShareIcon, EyeOffIcon } from './components/icons';
@@ -17,6 +17,7 @@ const App: React.FC = () => {
   const recordedChunksRef = useRef<Blob[]>([]);
   const [isPreviewVisible, setIsPreviewVisible] = useState(true);
   const [editingOverlayId, setEditingOverlayId] = useState<string | null>(null);
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
 
   useEffect(() => {
     if (screenVideoRef.current && screenStream && isPreviewVisible) {
@@ -108,6 +109,19 @@ const App: React.FC = () => {
   const handleTogglePreview = () => {
     setIsPreviewVisible(prev => !prev);
   };
+  
+  const handleEnumerateWebcams = useCallback(async () => {
+    try {
+      if (videoDevices.length === 0) {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop());
+      }
+    } catch (err) {
+      console.error("Error getting camera permissions:", err);
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
+  }, [videoDevices.length]);
 
   const handleSelectWebcam = async (deviceId: string) => {
     const existingWebcam = overlays.find(o => o.type === 'webcam') as WebcamOverlay | undefined;
@@ -158,24 +172,40 @@ const App: React.FC = () => {
   };
 
 
-  const handleAddImage = (file: File) => {
+  const handleAddMedia = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const newImage: ImageOverlay = {
-        id: `img_${Date.now()}`,
-        type: 'image',
-        src: e.target?.result as string,
+      const src = e.target?.result as string;
+      const commonProps = {
         position: { x: 100, y: 100 },
         size: { width: 400, height: 300 },
         zIndex: getNextZIndex(),
         border: {
             color: '#ffffff',
             width: 0,
-            style: 'solid',
+            // FIX: Explicitly cast 'style' to the required union type to prevent a TypeScript inference error.
+            style: 'solid' as 'solid' | 'dashed',
             radius: 0,
         },
       };
-      setOverlays(prev => [...prev, newImage]);
+
+      if (file.type.startsWith('image/')) {
+        const newImage: ImageOverlay = {
+          ...commonProps,
+          id: `img_${Date.now()}`,
+          type: 'image',
+          src,
+        };
+        setOverlays(prev => [...prev, newImage]);
+      } else if (file.type.startsWith('video/')) {
+        const newVideo: VideoOverlay = {
+          ...commonProps,
+          id: `vid_${Date.now()}`,
+          type: 'video',
+          src,
+        };
+        setOverlays(prev => [...prev, newVideo]);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -233,6 +263,33 @@ const App: React.FC = () => {
     );
   }, []);
 
+  const handleCycleSource = useCallback((id: string, direction: 'next' | 'previous') => {
+    const targetOverlay = overlays.find(o => o.id === id);
+    if (!targetOverlay) return;
+    
+    const step = direction === 'next' ? 1 : -1;
+
+    if (targetOverlay.type === 'webcam') {
+        if (videoDevices.length < 2) return;
+        const currentIndex = videoDevices.findIndex(d => d.deviceId === targetOverlay.deviceId);
+        const nextIndex = (currentIndex + step + videoDevices.length) % videoDevices.length;
+        handleSelectWebcam(videoDevices[nextIndex].deviceId);
+    }
+
+    if (targetOverlay.type === 'image' || targetOverlay.type === 'video') {
+        const sameTypeOverlays = overlays.filter(o => o.type === targetOverlay.type);
+        if (sameTypeOverlays.length < 2) return;
+
+        const currentIndex = sameTypeOverlays.findIndex(o => o.id === id);
+        const nextIndex = (currentIndex + step + sameTypeOverlays.length) % sameTypeOverlays.length;
+        const nextSrc = (sameTypeOverlays[nextIndex] as ImageOverlay | VideoOverlay).src;
+
+        setOverlays(prev => prev.map(o => 
+            o.id === id ? { ...(o as ImageOverlay | VideoOverlay), src: nextSrc } : o
+        ));
+    }
+  }, [overlays, videoDevices, handleSelectWebcam]);
+
   const activeWebcam = useMemo(() => overlays.find(o => o.type === 'webcam') as WebcamOverlay | undefined, [overlays]);
   const editingOverlay = useMemo(() => overlays.find(o => o.id === editingOverlayId), [overlays, editingOverlayId]);
 
@@ -275,6 +332,7 @@ const App: React.FC = () => {
                 onFocus={handleFocusOverlay}
                 onToggleFullScreen={handleToggleFullScreen}
                 onOpenSettings={handleOpenOverlaySettings}
+                onCycleSource={handleCycleSource}
                 containerRef={mainContainerRef}
             />
         ))}
@@ -286,12 +344,14 @@ const App: React.FC = () => {
         activeWebcamDeviceId={activeWebcam?.deviceId}
         isRecording={isRecording}
         isPreviewVisible={isPreviewVisible}
+        videoDevices={videoDevices}
         onToggleScreenShare={handleToggleScreenShare}
         onSelectWebcam={handleSelectWebcam}
         onStopWebcam={handleStopWebcam}
-        onAddImage={handleAddImage}
+        onAddMedia={handleAddMedia}
         onToggleRecording={handleToggleRecording}
         onTogglePreview={handleTogglePreview}
+        onEnumerateWebcams={handleEnumerateWebcams}
       />
       {editingOverlay && (
         <OverlaySettingsPanel
