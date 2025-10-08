@@ -1,22 +1,22 @@
 import React from 'react';
-import { WebcamBorder } from '../types';
+import { OverlayBorder } from '../types';
 import { CloseIcon } from './icons';
 
-interface WebcamSettingsPanelProps {
-  border: WebcamBorder;
-  onUpdate: (border: WebcamBorder) => void;
+interface OverlaySettingsPanelProps {
+  border: OverlayBorder;
+  onUpdate: (border: OverlayBorder) => void;
   onClose: () => void;
 }
 
-const WebcamSettingsPanel: React.FC<WebcamSettingsPanelProps> = ({ border, onUpdate, onClose }) => {
-  const handleUpdate = (key: keyof WebcamBorder, value: any) => {
+const OverlaySettingsPanel: React.FC<OverlaySettingsPanelProps> = ({ border, onUpdate, onClose }) => {
+  const handleUpdate = (key: keyof OverlayBorder, value: any) => {
     onUpdate({ ...border, [key]: value });
   };
 
   return (
     <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl z-50 w-80 text-white p-4 animate-fade-in">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-bold">Webcam Border Settings</h3>
+        <h3 className="text-lg font-bold">Overlay Border Settings</h3>
         <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-700">
           <CloseIcon />
         </button>
@@ -85,4 +85,4 @@ const WebcamSettingsPanel: React.FC<WebcamSettingsPanelProps> = ({ border, onUpd
   );
 };
 
-export default WebcamSettingsPanel;
+export default OverlaySettingsPanel;

@@ -1,4 +1,3 @@
-
 export interface Position {
   x: number;
   y: number;
@@ -9,6 +8,13 @@ export interface Size {
   height: number;
 }
 
+export interface OverlayBorder {
+  color: string;
+  width: number;
+  style: 'solid' | 'dashed';
+  radius: number;
+}
+
 export interface ImageOverlay {
   id: string;
   type: 'image';
@@ -16,13 +22,7 @@ export interface ImageOverlay {
   position: Position;
   size: Size;
   zIndex: number;
-}
-
-export interface WebcamBorder {
-  color: string;
-  width: number;
-  style: 'solid' | 'dashed';
-  radius: number;
+  border: OverlayBorder;
 }
 
 export interface WebcamOverlay {
@@ -34,7 +34,7 @@ export interface WebcamOverlay {
   size: Size;
   zIndex: number;
   isFullScreen: boolean;
-  border: WebcamBorder;
+  border: OverlayBorder;
 }
 
 export type Overlay = ImageOverlay | WebcamOverlay;

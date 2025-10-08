@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Position, Size, ImageOverlay, WebcamOverlay, Overlay, WebcamBorder } from './types';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Position, Size, ImageOverlay, WebcamOverlay, Overlay, OverlayBorder } from './types';
 import Toolbar from './components/Toolbar';
 import OverlayItem from './components/OverlayItem';
 import { ScreenShareIcon, EyeOffIcon } from './components/icons';
-import WebcamSettingsPanel from './components/WebcamSettingsPanel';
+import OverlaySettingsPanel from './components/WebcamSettingsPanel';
 
 const App: React.FC = () => {
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -16,7 +16,7 @@ const App: React.FC = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const [isPreviewVisible, setIsPreviewVisible] = useState(true);
-  const [isWebcamSettingsOpen, setIsWebcamSettingsOpen] = useState(false);
+  const [editingOverlayId, setEditingOverlayId] = useState<string | null>(null);
 
   useEffect(() => {
     if (screenVideoRef.current && screenStream && isPreviewVisible) {
@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const handleToggleScreenShare = async () => {
     if (screenStream) {
       screenStream.getTracks().forEach((track) => track.stop());
+      setScreenStream(null);
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -150,6 +151,9 @@ const App: React.FC = () => {
     if (webcamOverlay) {
       webcamOverlay.stream?.getTracks().forEach(track => track.stop());
       setOverlays(prev => prev.filter(o => o.type !== 'webcam'));
+      if (editingOverlayId === 'webcam') {
+        setEditingOverlayId(null);
+      }
     }
   };
 
@@ -164,6 +168,12 @@ const App: React.FC = () => {
         position: { x: 100, y: 100 },
         size: { width: 400, height: 300 },
         zIndex: getNextZIndex(),
+        border: {
+            color: '#ffffff',
+            width: 0,
+            style: 'solid',
+            radius: 0,
+        },
       };
       setOverlays(prev => [...prev, newImage]);
     };
@@ -182,14 +192,19 @@ const App: React.FC = () => {
       }
       return prev.filter(o => o.id !== id);
     });
-  }, []);
+    if (editingOverlayId === id) {
+        setEditingOverlayId(null);
+    }
+  }, [editingOverlayId]);
 
   const handleFocusOverlay = useCallback((id: string) => {
     setOverlays(prev => {
         const focusedOverlay = prev.find(o => o.id === id);
         if(!focusedOverlay || focusedOverlay.zIndex === zIndexCounter.current) return prev;
         
-        return prev.map(o => o.id === id ? { ...o, zIndex: getNextZIndex() } : o);
+        const maxZ = Math.max(...prev.map(o => o.zIndex), zIndexCounter.current);
+        zIndexCounter.current = maxZ + 1;
+        return prev.map(o => o.id === id ? { ...o, zIndex: zIndexCounter.current } : o);
     });
   }, []);
   
@@ -197,28 +212,29 @@ const App: React.FC = () => {
     setOverlays(prev => 
       prev.map(o => {
         if(o.id === id && o.type === 'webcam') {
-          return {...o, isFullScreen: !(o as WebcamOverlay).isFullScreen, zIndex: getNextZIndex() };
+          const maxZ = Math.max(...prev.map(p => p.zIndex), zIndexCounter.current);
+          zIndexCounter.current = maxZ + 1;
+          return {...o, isFullScreen: !(o as WebcamOverlay).isFullScreen, zIndex: zIndexCounter.current };
         }
         return o;
       })
     );
   }, []);
   
-  const handleOpenWebcamSettings = useCallback((id: string) => {
-    if (id === 'webcam') {
-        setIsWebcamSettingsOpen(true);
-    }
+  const handleOpenOverlaySettings = useCallback((id: string) => {
+    setEditingOverlayId(id);
   }, []);
 
-  const handleUpdateWebcamBorder = useCallback((border: WebcamBorder) => {
+  const handleUpdateOverlayBorder = useCallback((id: string, border: OverlayBorder) => {
     setOverlays(prev => 
         prev.map(o => 
-            o.id === 'webcam' ? { ...o, border } as WebcamOverlay : o
+            o.id === id ? { ...o, border } : o
         )
     );
   }, []);
 
-  const activeWebcam = overlays.find(o => o.type === 'webcam') as WebcamOverlay | undefined;
+  const activeWebcam = useMemo(() => overlays.find(o => o.type === 'webcam') as WebcamOverlay | undefined, [overlays]);
+  const editingOverlay = useMemo(() => overlays.find(o => o.id === editingOverlayId), [overlays, editingOverlayId]);
 
   return (
     <div ref={mainContainerRef} className="h-screen w-screen overflow-hidden flex flex-col bg-gray-900">
@@ -258,7 +274,7 @@ const App: React.FC = () => {
                 onDelete={handleDeleteOverlay}
                 onFocus={handleFocusOverlay}
                 onToggleFullScreen={handleToggleFullScreen}
-                onOpenSettings={handleOpenWebcamSettings}
+                onOpenSettings={handleOpenOverlaySettings}
                 containerRef={mainContainerRef}
             />
         ))}
@@ -277,11 +293,11 @@ const App: React.FC = () => {
         onToggleRecording={handleToggleRecording}
         onTogglePreview={handleTogglePreview}
       />
-      {isWebcamSettingsOpen && activeWebcam && (
-        <WebcamSettingsPanel
-            border={activeWebcam.border}
-            onUpdate={handleUpdateWebcamBorder}
-            onClose={() => setIsWebcamSettingsOpen(false)}
+      {editingOverlay && (
+        <OverlaySettingsPanel
+            border={editingOverlay.border}
+            onUpdate={(border) => handleUpdateOverlayBorder(editingOverlay.id, border)}
+            onClose={() => setEditingOverlayId(null)}
         />
       )}
     </div>

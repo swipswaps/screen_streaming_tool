@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import { ImageOverlay, WebcamOverlay, Position, Size } from '../types';
 import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon, SettingsIcon } from './icons';
@@ -26,6 +25,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const isWebcam = overlay.type === 'webcam';
   const webcamOverlay = isWebcam ? (overlay as WebcamOverlay) : null;
+  const imageOverlay = overlay.type === 'image' ? (overlay as ImageOverlay) : null;
 
   useEffect(() => {
     if (isWebcam && videoRef.current && webcamOverlay?.stream) {
@@ -41,12 +41,12 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
   
   const handleFocus = () => onFocus(overlay.id);
 
-  const videoStyles: React.CSSProperties = isWebcam && webcamOverlay?.border ? {
-    borderWidth: `${webcamOverlay.border.width}px`,
-    borderColor: webcamOverlay.border.color,
-    borderStyle: webcamOverlay.border.style,
-    borderRadius: `${webcamOverlay.border.radius}px`,
-  } : {};
+  const overlayStyles: React.CSSProperties = {
+    borderWidth: `${overlay.border.width}px`,
+    borderColor: overlay.border.color,
+    borderStyle: overlay.border.style,
+    borderRadius: `${overlay.border.radius}px`,
+  };
 
   return (
     <DraggableResizableFrame
@@ -59,7 +59,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
       isFullScreen={isWebcam ? webcamOverlay?.isFullScreen ?? false : false}
     >
       <div className="absolute top-1 right-1 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {isWebcam && onOpenSettings && (
+        {onOpenSettings && (
           <button 
             onClick={() => onOpenSettings(overlay.id)}
             className="p-1 rounded-full bg-black bg-opacity-50 hover:bg-opacity-75 text-white"
@@ -85,12 +85,13 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
             <CloseIcon />
         </button>
       </div>
-      {overlay.type === 'image' && (
+      {overlay.type === 'image' && imageOverlay && (
         <img
-          src={(overlay as ImageOverlay).src}
+          src={imageOverlay.src}
           className="w-full h-full object-contain pointer-events-none"
           alt="Overlay"
           draggable={false}
+          style={overlayStyles}
         />
       )}
       {overlay.type === 'webcam' && (
@@ -100,7 +101,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
           playsInline
           muted
           className="w-full h-full object-cover"
-          style={videoStyles}
+          style={overlayStyles}
         />
       )}
     </DraggableResizableFrame>
