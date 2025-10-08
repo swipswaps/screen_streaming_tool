@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Position, Size, ImageOverlay, WebcamOverlay, Overlay } from './types';
+import { Position, Size, ImageOverlay, WebcamOverlay, Overlay, WebcamBorder } from './types';
 import Toolbar from './components/Toolbar';
 import OverlayItem from './components/OverlayItem';
 import { ScreenShareIcon, EyeOffIcon } from './components/icons';
+import WebcamSettingsPanel from './components/WebcamSettingsPanel';
 
 const App: React.FC = () => {
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -15,6 +16,7 @@ const App: React.FC = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const [isPreviewVisible, setIsPreviewVisible] = useState(true);
+  const [isWebcamSettingsOpen, setIsWebcamSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (screenVideoRef.current && screenStream && isPreviewVisible) {
@@ -129,6 +131,12 @@ const App: React.FC = () => {
           size: { width: 320, height: 240 },
           zIndex: getNextZIndex(),
           isFullScreen: false,
+          border: {
+            color: '#ffffff',
+            width: 4,
+            style: 'solid',
+            radius: 0,
+          },
         };
         setOverlays(prev => [...prev, newWebcam]);
       }
@@ -195,6 +203,20 @@ const App: React.FC = () => {
       })
     );
   }, []);
+  
+  const handleOpenWebcamSettings = useCallback((id: string) => {
+    if (id === 'webcam') {
+        setIsWebcamSettingsOpen(true);
+    }
+  }, []);
+
+  const handleUpdateWebcamBorder = useCallback((border: WebcamBorder) => {
+    setOverlays(prev => 
+        prev.map(o => 
+            o.id === 'webcam' ? { ...o, border } as WebcamOverlay : o
+        )
+    );
+  }, []);
 
   const activeWebcam = overlays.find(o => o.type === 'webcam') as WebcamOverlay | undefined;
 
@@ -236,6 +258,7 @@ const App: React.FC = () => {
                 onDelete={handleDeleteOverlay}
                 onFocus={handleFocusOverlay}
                 onToggleFullScreen={handleToggleFullScreen}
+                onOpenSettings={handleOpenWebcamSettings}
                 containerRef={mainContainerRef}
             />
         ))}
@@ -254,6 +277,13 @@ const App: React.FC = () => {
         onToggleRecording={handleToggleRecording}
         onTogglePreview={handleTogglePreview}
       />
+      {isWebcamSettingsOpen && activeWebcam && (
+        <WebcamSettingsPanel
+            border={activeWebcam.border}
+            onUpdate={handleUpdateWebcamBorder}
+            onClose={() => setIsWebcamSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 };

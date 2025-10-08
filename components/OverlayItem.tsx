@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { ImageOverlay, WebcamOverlay, Position, Size } from '../types';
-import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon } from './icons';
+import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon, SettingsIcon } from './icons';
 import DraggableResizableFrame from './DraggableResizableFrame';
 
 interface OverlayItemProps {
@@ -10,6 +10,7 @@ interface OverlayItemProps {
   onDelete: (id: string) => void;
   onFocus: (id: string) => void;
   onToggleFullScreen?: (id: string) => void;
+  onOpenSettings?: (id: string) => void;
   containerRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -19,6 +20,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
   onDelete,
   onFocus,
   onToggleFullScreen,
+  onOpenSettings,
   containerRef,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -39,6 +41,13 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
   
   const handleFocus = () => onFocus(overlay.id);
 
+  const videoStyles: React.CSSProperties = isWebcam && webcamOverlay?.border ? {
+    borderWidth: `${webcamOverlay.border.width}px`,
+    borderColor: webcamOverlay.border.color,
+    borderStyle: webcamOverlay.border.style,
+    borderRadius: `${webcamOverlay.border.radius}px`,
+  } : {};
+
   return (
     <DraggableResizableFrame
       position={overlay.position}
@@ -50,6 +59,15 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
       isFullScreen={isWebcam ? webcamOverlay?.isFullScreen ?? false : false}
     >
       <div className="absolute top-1 right-1 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {isWebcam && onOpenSettings && (
+          <button 
+            onClick={() => onOpenSettings(overlay.id)}
+            className="p-1 rounded-full bg-black bg-opacity-50 hover:bg-opacity-75 text-white"
+            title="Border Settings"
+          >
+            <SettingsIcon />
+          </button>
+        )}
         {isWebcam && onToggleFullScreen && (
           <button 
             onClick={() => onToggleFullScreen(overlay.id)}
@@ -82,6 +100,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
           playsInline
           muted
           className="w-full h-full object-cover"
+          style={videoStyles}
         />
       )}
     </DraggableResizableFrame>

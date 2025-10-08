@@ -18,6 +18,13 @@ export interface ImageOverlay {
   zIndex: number;
 }
 
+export interface WebcamBorder {
+  color: string;
+  width: number;
+  style: 'solid' | 'dashed';
+  radius: number;
+}
+
 export interface WebcamOverlay {
   id: 'webcam';
   type: 'webcam';
@@ -27,6 +34,7 @@ export interface WebcamOverlay {
   size: Size;
   zIndex: number;
   isFullScreen: boolean;
+  border: WebcamBorder;
 }
 
 export type Overlay = ImageOverlay | WebcamOverlay;
