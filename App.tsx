@@ -173,16 +173,21 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (screenStream) {
-      const canvasStream = compositeCanvasRef.current?.captureStream(30);
-      if (canvasStream) {
+      const canvas = compositeCanvasRef.current;
+      if (canvas) {
+        const videoStream = canvas.captureStream(30);
+        const videoTrack = videoStream.getVideoTracks()[0];
         const screenAudioTracks = screenStream.getAudioTracks();
-        // If the user shared system audio, merge it into the composite stream for recording.
-        if (screenAudioTracks.length > 0) {
-          canvasStream.addTrack(screenAudioTracks[0]);
+
+        if (videoTrack) {
+          // Create a new stream for recording.
+          // It will contain the composited video and, if available, the system audio.
+          const finalStream = new MediaStream([videoTrack]);
+          if (screenAudioTracks.length > 0) {
+            finalStream.addTrack(screenAudioTracks[0]);
+          }
+          setCompositeStream(finalStream);
         }
-        setCompositeStream(canvasStream);
-      } else {
-        setCompositeStream(null);
       }
       animationFrameIdRef.current = requestAnimationFrame(drawCompositeFrame);
     } else {
@@ -254,6 +259,7 @@ const App: React.FC = () => {
   const handleEnumerateWebcams = useCallback(async () => {
     try {
       if (videoDevices.length === 0) {
+        // This is a small trick to trigger the permission prompt if it hasn't been granted yet.
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach(track => track.stop());
       }
