@@ -63,7 +63,6 @@ const App: React.FC = () => {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
-          audio: false,
         });
 
         const videoTrack = stream.getVideoTracks()[0];
