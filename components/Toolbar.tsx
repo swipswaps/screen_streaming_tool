@@ -1,23 +1,27 @@
-
 import React, { useRef, useState, useEffect } from 'react';
-import { CameraIcon, ImageIcon, ScreenShareIcon } from './icons';
+import { CameraIcon, ImageIcon, ScreenShareIcon, RecordIcon, EyeIcon, EyeOffIcon } from './icons';
 
 interface ToolbarProps {
   isScreenSharing: boolean;
   isWebcamOn: boolean;
   activeWebcamDeviceId?: string;
+  isRecording: boolean;
+  isPreviewVisible: boolean;
   onToggleScreenShare: () => void;
   onSelectWebcam: (deviceId: string) => void;
   onStopWebcam: () => void;
   onAddImage: (file: File) => void;
+  onToggleRecording: () => void;
+  onTogglePreview: () => void;
 }
 
-const ToolbarButton: React.FC<{ onClick?: () => void; children: React.ReactNode; isActive?: boolean; title: string; ref?: React.Ref<HTMLButtonElement> }> = React.forwardRef(({ onClick, children, isActive, title }, ref) => (
+const ToolbarButton: React.FC<{ onClick?: () => void; children: React.ReactNode; isActive?: boolean; title: string; disabled?: boolean; ref?: React.Ref<HTMLButtonElement> }> = React.forwardRef(({ onClick, children, isActive, title, disabled }, ref) => (
   <button
     ref={ref}
     onClick={onClick}
     title={title}
-    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors duration-200 ${
+    disabled={disabled}
+    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
       isActive
         ? 'bg-blue-600 text-white hover:bg-blue-500'
         : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
@@ -32,18 +36,20 @@ const Toolbar: React.FC<ToolbarProps> = ({
     isScreenSharing, 
     isWebcamOn, 
     activeWebcamDeviceId,
+    isRecording,
+    isPreviewVisible,
     onToggleScreenShare, 
     onSelectWebcam,
     onStopWebcam,
-    onAddImage 
+    onAddImage,
+    onToggleRecording,
+    onTogglePreview
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isWebcamMenuOpen, setIsWebcamMenuOpen] = useState(false);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const webcamMenuRef = useRef<HTMLDivElement>(null);
-  const webcamButtonRef = useRef<HTMLButtonElement>(null);
-
 
   const handleAddImageClick = () => {
     fileInputRef.current?.click();
@@ -64,6 +70,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       setIsLoadingDevices(true);
       setIsWebcamMenuOpen(true);
       try {
+        // Ensure we have permission before enumerating, as some browsers require it for labels
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach(track => track.stop());
       } catch (err) {
@@ -110,8 +117,26 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <span>{isScreenSharing ? 'Stop' : 'Screen'}</span>
         </ToolbarButton>
 
+        <button
+            onClick={onToggleRecording}
+            disabled={!isScreenSharing}
+            title={isRecording ? "Stop Recording" : "Start Recording"}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+            isRecording
+                ? 'bg-red-600 text-white hover:bg-red-500 animate-pulse'
+                : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+            }`}
+        >
+            <RecordIcon className="w-5 h-5" />
+            <span>{isRecording ? 'Stop' : 'Record'}</span>
+        </button>
+        
+        <ToolbarButton onClick={onTogglePreview} disabled={!isScreenSharing} isActive={isPreviewVisible} title={isPreviewVisible ? "Hide Preview" : "Show Preview"}>
+          {isPreviewVisible ? <EyeIcon className="w-5 h-5" /> : <EyeOffIcon className="w-5 h-5" />}
+        </ToolbarButton>
+
         <div className="relative" ref={webcamMenuRef}>
-          <ToolbarButton ref={webcamButtonRef} onClick={handleWebcamButtonClick} isActive={isWebcamOn} title="Webcam Settings">
+          <ToolbarButton onClick={handleWebcamButtonClick} isActive={isWebcamOn} title="Webcam Settings">
             <CameraIcon />
             <span>Webcam</span>
           </ToolbarButton>

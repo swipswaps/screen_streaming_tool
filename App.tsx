@@ -1,9 +1,8 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Position, Size, ImageOverlay, WebcamOverlay, Overlay } from './types';
 import Toolbar from './components/Toolbar';
 import OverlayItem from './components/OverlayItem';
-import { ScreenShareIcon } from './components/icons';
+import { ScreenShareIcon, EyeOffIcon } from './components/icons';
 
 const App: React.FC = () => {
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -12,11 +11,22 @@ const App: React.FC = () => {
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const zIndexCounter = useRef(10);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const [isPreviewVisible, setIsPreviewVisible] = useState(true);
+
   useEffect(() => {
-    if (screenVideoRef.current && screenStream) {
+    if (screenVideoRef.current && screenStream && isPreviewVisible) {
       screenVideoRef.current.srcObject = screenStream;
     }
-  }, [screenStream]);
+  }, [screenStream, isPreviewVisible]);
+  
+  useEffect(() => {
+    if (!screenStream && isRecording) {
+      mediaRecorderRef.current?.stop();
+    }
+  }, [screenStream, isRecording]);
 
   const getNextZIndex = () => {
     zIndexCounter.current += 1;
@@ -26,18 +36,74 @@ const App: React.FC = () => {
   const handleToggleScreenShare = async () => {
     if (screenStream) {
       screenStream.getTracks().forEach((track) => track.stop());
-      setScreenStream(null);
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
         });
+
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.onended = () => {
+                stream.getTracks().forEach(t => t.stop());
+                setScreenStream(null);
+                setIsPreviewVisible(true); // Reset preview visibility on stop
+            };
+        }
         setScreenStream(stream);
       } catch (error) {
         console.error('Error sharing screen:', error);
       }
     }
+  };
+  
+  const handleToggleRecording = useCallback(() => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+    } else {
+      if (!screenStream) {
+        alert("Please start screen sharing before recording.");
+        return;
+      }
+      recordedChunksRef.current = [];
+      try {
+        const recorder = new MediaRecorder(screenStream, { mimeType: 'video/webm' });
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunksRef.current.push(event.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          document.body.appendChild(a);
+          a.style.display = 'none';
+          a.href = url;
+          a.download = `stream-studio-recording-${Date.now()}.webm`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          recordedChunksRef.current = [];
+          setIsRecording(false);
+          mediaRecorderRef.current = null;
+        };
+
+        recorder.start();
+        setIsRecording(true);
+      } catch (error) {
+        console.error("Error starting recording:", error);
+        alert("Could not start recording. Your browser may not support this feature.");
+      }
+    }
+  }, [isRecording, screenStream]);
+
+  const handleTogglePreview = () => {
+    setIsPreviewVisible(prev => !prev);
   };
 
   const handleSelectWebcam = async (deviceId: string) => {
@@ -136,11 +202,24 @@ const App: React.FC = () => {
     <div ref={mainContainerRef} className="h-screen w-screen overflow-hidden flex flex-col bg-gray-900">
       <main className="flex-1 relative bg-black">
         {screenStream ? (
-          <video
-            ref={screenVideoRef}
-            autoPlay
-            className="w-full h-full object-contain"
-          />
+          !isPreviewVisible ? (
+            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-800 p-8 text-center">
+                <EyeOffIcon className="w-24 h-24 mb-4" />
+                <h2 className="text-2xl font-bold text-white">Preview Hidden</h2>
+                <p className="mt-2 text-lg max-w-2xl">
+                    Your stream is active. The preview is hidden to prevent the "hall of mirrors" effect.
+                </p>
+                <p className="mt-1 text-base text-gray-500">
+                    Click the Preview button in the toolbar to show it if you are capturing a different screen.
+                </p>
+            </div>
+          ) : (
+            <video
+              ref={screenVideoRef}
+              autoPlay
+              className="w-full h-full object-contain"
+            />
+          )
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-gray-500">
              <ScreenShareIcon className="w-24 h-24 mb-4" />
@@ -166,10 +245,14 @@ const App: React.FC = () => {
         isScreenSharing={!!screenStream}
         isWebcamOn={!!activeWebcam}
         activeWebcamDeviceId={activeWebcam?.deviceId}
+        isRecording={isRecording}
+        isPreviewVisible={isPreviewVisible}
         onToggleScreenShare={handleToggleScreenShare}
         onSelectWebcam={handleSelectWebcam}
         onStopWebcam={handleStopWebcam}
         onAddImage={handleAddImage}
+        onToggleRecording={handleToggleRecording}
+        onTogglePreview={handleTogglePreview}
       />
     </div>
   );
