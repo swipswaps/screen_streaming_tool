@@ -18,6 +18,8 @@ const App: React.FC = () => {
   const [isPreviewVisible, setIsPreviewVisible] = useState(true);
   const [editingOverlayId, setEditingOverlayId] = useState<string | null>(null);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [mediaLibrary, setMediaLibrary] = useState<{ images: string[], videos: string[] }>({ images: [], videos: [] });
+
 
   useEffect(() => {
     if (screenVideoRef.current && screenStream && isPreviewVisible) {
@@ -112,6 +114,7 @@ const App: React.FC = () => {
   
   const handleEnumerateWebcams = useCallback(async () => {
     try {
+      // Ensure permissions are requested before enumerating
       if (videoDevices.length === 0) {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach(track => track.stop());
@@ -172,10 +175,39 @@ const App: React.FC = () => {
   };
 
 
-  const handleAddMedia = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const src = e.target?.result as string;
+  const handleAddMedia = (files: FileList) => {
+    const fileList = Array.from(files);
+    const newImageSrcs: string[] = [];
+    const newVideoSrcs: string[] = [];
+    
+    let firstNewImageSrc: string | null = null;
+    let firstNewVideoSrc: string | null = null;
+
+    const filePromises = fileList.map(file => {
+      return new Promise<void>(resolve => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const src = e.target?.result as string;
+          if (file.type.startsWith('image/')) {
+            newImageSrcs.push(src);
+            if (!firstNewImageSrc) firstNewImageSrc = src;
+          } else if (file.type.startsWith('video/')) {
+            newVideoSrcs.push(src);
+            if (!firstNewVideoSrc) firstNewVideoSrc = src;
+          }
+          resolve();
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(filePromises).then(() => {
+      setMediaLibrary(prev => ({
+        images: [...prev.images, ...newImageSrcs],
+        videos: [...prev.videos, ...newVideoSrcs],
+      }));
+      
+      const newOverlays: Overlay[] = [];
       const commonProps = {
         position: { x: 100, y: 100 },
         size: { width: 400, height: 300 },
@@ -183,31 +215,33 @@ const App: React.FC = () => {
         border: {
             color: '#ffffff',
             width: 0,
-            // FIX: Explicitly cast 'style' to the required union type to prevent a TypeScript inference error.
             style: 'solid' as 'solid' | 'dashed',
             radius: 0,
         },
       };
 
-      if (file.type.startsWith('image/')) {
-        const newImage: ImageOverlay = {
+      if (firstNewImageSrc) {
+        newOverlays.push({
           ...commonProps,
           id: `img_${Date.now()}`,
           type: 'image',
-          src,
-        };
-        setOverlays(prev => [...prev, newImage]);
-      } else if (file.type.startsWith('video/')) {
-        const newVideo: VideoOverlay = {
+          src: firstNewImageSrc,
+        });
+      }
+
+      if (firstNewVideoSrc) {
+        newOverlays.push({
           ...commonProps,
           id: `vid_${Date.now()}`,
           type: 'video',
-          src,
-        };
-        setOverlays(prev => [...prev, newVideo]);
+          src: firstNewVideoSrc,
+        });
       }
-    };
-    reader.readAsDataURL(file);
+
+      if (newOverlays.length > 0) {
+        setOverlays(prev => [...prev, ...newOverlays]);
+      }
+    });
   };
   
   const handleUpdateOverlay = useCallback((id: string, position: Position, size: Size) => {
@@ -276,34 +310,26 @@ const App: React.FC = () => {
         handleSelectWebcam(videoDevices[nextIndex].deviceId);
     }
 
-    if (targetOverlay.type === 'image' || targetOverlay.type === 'video') {
-        const sameTypeOverlays = overlays.filter(o => o.type === targetOverlay.type);
-        if (sameTypeOverlays.length < 2) return;
-
-        const currentIndex = sameTypeOverlays.findIndex(o => o.id === id);
-        const nextIndex = (currentIndex + step + sameTypeOverlays.length) % sameTypeOverlays.length;
-        
-        const currentClickedOverlay = sameTypeOverlays[currentIndex];
-        const otherOverlayToSwapWith = sameTypeOverlays[nextIndex];
-
-        // If we are about to swap with ourselves, do nothing.
-        if (currentClickedOverlay.id === otherOverlayToSwapWith.id) return;
-
-        const currentSrc = (currentClickedOverlay as ImageOverlay | VideoOverlay).src;
-        const otherSrc = (otherOverlayToSwapWith as ImageOverlay | VideoOverlay).src;
-        
-        // Swap the sources between the two overlays
-        setOverlays(prev => prev.map(o => {
-            if (o.id === currentClickedOverlay.id) {
-                return { ...(o as ImageOverlay | VideoOverlay), src: otherSrc };
-            }
-            if (o.id === otherOverlayToSwapWith.id) {
-                return { ...(o as ImageOverlay | VideoOverlay), src: currentSrc };
-            }
-            return o;
-        }));
+    if (targetOverlay.type === 'image') {
+        if (mediaLibrary.images.length < 2) return;
+        const currentSrc = (targetOverlay as ImageOverlay).src;
+        const currentIndex = mediaLibrary.images.indexOf(currentSrc);
+        if (currentIndex === -1) return;
+        const nextIndex = (currentIndex + step + mediaLibrary.images.length) % mediaLibrary.images.length;
+        const nextSrc = mediaLibrary.images[nextIndex];
+        setOverlays(prev => prev.map(o => (o.id === id ? { ...o, src: nextSrc } : o)));
     }
-  }, [overlays, videoDevices, handleSelectWebcam]);
+    
+    if (targetOverlay.type === 'video') {
+        if (mediaLibrary.videos.length < 2) return;
+        const currentSrc = (targetOverlay as VideoOverlay).src;
+        const currentIndex = mediaLibrary.videos.indexOf(currentSrc);
+        if (currentIndex === -1) return;
+        const nextIndex = (currentIndex + step + mediaLibrary.videos.length) % mediaLibrary.videos.length;
+        const nextSrc = mediaLibrary.videos[nextIndex];
+        setOverlays(prev => prev.map(o => (o.id === id ? { ...o, src: nextSrc } : o)));
+    }
+  }, [overlays, videoDevices, mediaLibrary, handleSelectWebcam]);
 
   const activeWebcam = useMemo(() => overlays.find(o => o.type === 'webcam') as WebcamOverlay | undefined, [overlays]);
   const editingOverlay = useMemo(() => overlays.find(o => o.id === editingOverlayId), [overlays, editingOverlayId]);

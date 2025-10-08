@@ -11,7 +11,7 @@ interface ToolbarProps {
   onToggleScreenShare: () => void;
   onSelectWebcam: (deviceId: string) => void;
   onStopWebcam: () => void;
-  onAddMedia: (file: File) => void;
+  onAddMedia: (files: FileList) => void;
   onToggleRecording: () => void;
   onTogglePreview: () => void;
   onEnumerateWebcams: () => void;
@@ -58,9 +58,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      onAddMedia(file);
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      onAddMedia(files);
     }
     if(fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -174,6 +174,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           className="hidden"
           accept="image/*,video/*"
           onChange={handleFileChange}
+          multiple
         />
       </div>
     </div>
