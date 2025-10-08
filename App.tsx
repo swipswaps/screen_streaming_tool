@@ -123,7 +123,7 @@ const App: React.FC = () => {
     setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
   }, [videoDevices.length]);
 
-  const handleSelectWebcam = async (deviceId: string) => {
+  const handleSelectWebcam = useCallback(async (deviceId: string) => {
     const existingWebcam = overlays.find(o => o.type === 'webcam') as WebcamOverlay | undefined;
     existingWebcam?.stream?.getTracks().forEach(track => track.stop());
 
@@ -158,7 +158,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Error accessing webcam:', error);
     }
-  };
+  }, [overlays]);
 
   const handleStopWebcam = () => {
     const webcamOverlay = overlays.find(o => o.type === 'webcam') as WebcamOverlay | undefined;
@@ -282,11 +282,26 @@ const App: React.FC = () => {
 
         const currentIndex = sameTypeOverlays.findIndex(o => o.id === id);
         const nextIndex = (currentIndex + step + sameTypeOverlays.length) % sameTypeOverlays.length;
-        const nextSrc = (sameTypeOverlays[nextIndex] as ImageOverlay | VideoOverlay).src;
+        
+        const currentClickedOverlay = sameTypeOverlays[currentIndex];
+        const otherOverlayToSwapWith = sameTypeOverlays[nextIndex];
 
-        setOverlays(prev => prev.map(o => 
-            o.id === id ? { ...(o as ImageOverlay | VideoOverlay), src: nextSrc } : o
-        ));
+        // If we are about to swap with ourselves, do nothing.
+        if (currentClickedOverlay.id === otherOverlayToSwapWith.id) return;
+
+        const currentSrc = (currentClickedOverlay as ImageOverlay | VideoOverlay).src;
+        const otherSrc = (otherOverlayToSwapWith as ImageOverlay | VideoOverlay).src;
+        
+        // Swap the sources between the two overlays
+        setOverlays(prev => prev.map(o => {
+            if (o.id === currentClickedOverlay.id) {
+                return { ...(o as ImageOverlay | VideoOverlay), src: otherSrc };
+            }
+            if (o.id === otherOverlayToSwapWith.id) {
+                return { ...(o as ImageOverlay | VideoOverlay), src: currentSrc };
+            }
+            return o;
+        }));
     }
   }, [overlays, videoDevices, handleSelectWebcam]);
 
