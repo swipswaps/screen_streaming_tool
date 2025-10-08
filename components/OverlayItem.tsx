@@ -106,6 +106,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
       </div>
       {(overlay.type === 'image' || overlay.type === 'graphic') && (
         <img
+          id={`media-element-${overlay.id}`}
           src={(overlay as ImageOverlay | GraphicOverlay).src}
           className="w-full h-full object-cover pointer-events-none"
           alt="Overlay"
@@ -115,6 +116,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
       )}
        {overlay.type === 'video' && (
         <video
+          id={`media-element-${overlay.id}`}
           src={(overlay as VideoOverlay).src}
           className="w-full h-full object-cover pointer-events-none"
           autoPlay
@@ -126,6 +128,7 @@ const OverlayItem: React.FC<OverlayItemProps> = ({
       )}
       {overlay.type === 'webcam' && (
         <video
+          id={`media-element-${overlay.id}`}
           ref={videoRef}
           autoPlay
           playsInline

@@ -5,12 +5,29 @@ import OverlayItem from './components/OverlayItem';
 import { ScreenShareIcon, EyeOffIcon } from './components/icons';
 import OverlaySettingsPanel from './components/WebcamSettingsPanel';
 
+function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+    if (width < 2 * radius) radius = width / 2;
+    if (height < 2 * radius) radius = height / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, radius);
+    ctx.arcTo(x + width, y + height, x, y + height, radius);
+    ctx.arcTo(x, y + height, x, y, radius);
+    ctx.arcTo(x, y, x + width, y, radius);
+    ctx.closePath();
+}
+
 const App: React.FC = () => {
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [overlays, setOverlays] = useState<Overlay[]>([]);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const zIndexCounter = useRef(10);
+
+  // For compositing and recording
+  const compositeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
+  const [compositeStream, setCompositeStream] = useState<MediaStream | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -63,18 +80,113 @@ const App: React.FC = () => {
       }
     }
   };
+
+  const drawCompositeFrame = useCallback(() => {
+    const canvas = compositeCanvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    const screenVideo = screenVideoRef.current;
+    const container = mainContainerRef.current;
+
+    if (!ctx || !canvas || !screenVideo || !container || screenVideo.videoWidth === 0) {
+      animationFrameIdRef.current = requestAnimationFrame(drawCompositeFrame);
+      return;
+    }
+
+    if (canvas.width !== screenVideo.videoWidth || canvas.height !== screenVideo.videoHeight) {
+      canvas.width = screenVideo.videoWidth;
+      canvas.height = screenVideo.videoHeight;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
+
+    const sortedOverlays = [...overlays].sort((a, b) => a.zIndex - b.zIndex);
+    const containerRect = container.getBoundingClientRect();
+    const scaleX = canvas.width / containerRect.width;
+    const scaleY = canvas.height / containerRect.height;
+
+    sortedOverlays.forEach(overlay => {
+      const mediaElement = document.getElementById(`media-element-${overlay.id}`) as HTMLVideoElement | HTMLImageElement;
+      if (mediaElement) {
+        let x: number, y: number, width: number, height: number;
+        const isWebcamFS = overlay.type === 'webcam' && (overlay as WebcamOverlay).isFullScreen;
+
+        if (isWebcamFS) {
+          x = y = 0;
+          width = canvas.width;
+          height = canvas.height;
+        } else {
+          x = overlay.position.x * scaleX;
+          y = overlay.position.y * scaleY;
+          width = overlay.size.width * scaleX;
+          height = overlay.size.height * scaleY;
+        }
+
+        const radius = overlay.border.radius * scaleX;
+        
+        ctx.save();
+        drawRoundedRect(ctx, x, y, width, height, radius);
+        ctx.clip();
+        
+        try {
+            if ((mediaElement as HTMLVideoElement).readyState >= 2) {
+                ctx.drawImage(mediaElement, x, y, width, height);
+            } else if ((mediaElement as HTMLImageElement).complete && (mediaElement as HTMLImageElement).naturalHeight !== 0) {
+                ctx.drawImage(mediaElement, x, y, width, height);
+            }
+        } catch (e) {
+            console.error("Error drawing media element:", e);
+        }
+        ctx.restore();
+
+        if (overlay.border.width > 0) {
+          ctx.save();
+          ctx.strokeStyle = overlay.border.color;
+          ctx.lineWidth = overlay.border.width * scaleX;
+          if (overlay.border.style === 'dashed') {
+            ctx.setLineDash([15 * scaleX, 10 * scaleX]);
+          }
+          drawRoundedRect(ctx, x, y, width, height, radius);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    });
+
+    animationFrameIdRef.current = requestAnimationFrame(drawCompositeFrame);
+  }, [overlays]);
+
+  useEffect(() => {
+    if (screenStream) {
+      setCompositeStream(compositeCanvasRef.current?.captureStream(30) || null);
+      animationFrameIdRef.current = requestAnimationFrame(drawCompositeFrame);
+    } else {
+      setCompositeStream(null);
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
+    }
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+    };
+  }, [screenStream, drawCompositeFrame]);
+
   
   const handleToggleRecording = useCallback(() => {
     if (isRecording) {
       mediaRecorderRef.current?.stop();
     } else {
-      if (!screenStream) {
+      const streamToRecord = compositeStream || screenStream;
+      if (!streamToRecord) {
         alert("Please start screen sharing before recording.");
         return;
       }
       recordedChunksRef.current = [];
       try {
-        const recorder = new MediaRecorder(screenStream, { mimeType: 'video/webm' });
+        const recorder = new MediaRecorder(streamToRecord, { mimeType: 'video/webm' });
         mediaRecorderRef.current = recorder;
 
         recorder.ondataavailable = (event) => {
@@ -106,7 +218,7 @@ const App: React.FC = () => {
         alert("Could not start recording. Your browser may not support this feature.");
       }
     }
-  }, [isRecording, screenStream]);
+  }, [isRecording, screenStream, compositeStream]);
 
   const handleTogglePreview = () => {
     setIsPreviewVisible(prev => !prev);
@@ -114,7 +226,6 @@ const App: React.FC = () => {
   
   const handleEnumerateWebcams = useCallback(async () => {
     try {
-      // Ensure permissions are requested before enumerating
       if (videoDevices.length === 0) {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach(track => track.stop());
@@ -361,6 +472,7 @@ const App: React.FC = () => {
 
   return (
     <div ref={mainContainerRef} className="h-screen w-screen overflow-hidden flex flex-col bg-gray-900">
+      <canvas ref={compositeCanvasRef} style={{ position: 'absolute', top: -9999, left: -9999 }} />
       <main className="flex-1 relative bg-black">
         {screenStream ? (
           !isPreviewVisible ? (
@@ -378,6 +490,7 @@ const App: React.FC = () => {
             <video
               ref={screenVideoRef}
               autoPlay
+              muted
               className="w-full h-full object-contain"
             />
           )
