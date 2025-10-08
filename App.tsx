@@ -60,22 +60,38 @@ const App: React.FC = () => {
       screenStream.getTracks().forEach((track) => track.stop());
       setScreenStream(null);
     } else {
+      let stream: MediaStream | null = null;
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
+        // First, try to get screen share with audio.
+        // This is supported on modern platforms but may fail if unsupported.
+        stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
+          audio: true,
         });
+      } catch (error) {
+        console.warn('Screen sharing with audio failed, trying without audio.', error);
+        // If it fails, try again with video only.
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+          });
+        } catch (finalError) {
+          console.error('Error sharing screen:', finalError);
+          alert('Could not start screen sharing. Please check browser permissions and try again.');
+          return;
+        }
+      }
 
+      if (stream) {
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
             videoTrack.onended = () => {
-                stream.getTracks().forEach(t => t.stop());
+                stream?.getTracks().forEach(t => t.stop());
                 setScreenStream(null);
                 setIsPreviewVisible(true); // Reset preview visibility on stop
             };
         }
         setScreenStream(stream);
-      } catch (error) {
-        console.error('Error sharing screen:', error);
       }
     }
   };
@@ -157,9 +173,26 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (screenStream) {
-      setCompositeStream(compositeCanvasRef.current?.captureStream(30) || null);
+      const canvas = compositeCanvasRef.current;
+      if (canvas) {
+        const videoStream = canvas.captureStream(30);
+        const videoTrack = videoStream.getVideoTracks()[0];
+        const screenAudioTracks = screenStream.getAudioTracks();
+
+        if (videoTrack) {
+          // Create a new stream for recording.
+          // It will contain the composited video and, if available, the system audio.
+          const finalStream = new MediaStream([videoTrack]);
+          if (screenAudioTracks.length > 0) {
+            finalStream.addTrack(screenAudioTracks[0]);
+          }
+          setCompositeStream(finalStream);
+        }
+      }
       animationFrameIdRef.current = requestAnimationFrame(drawCompositeFrame);
     } else {
+      // Clean up composite stream when screen sharing stops
+      compositeStream?.getTracks().forEach(track => track.stop());
       setCompositeStream(null);
       if (animationFrameIdRef.current) {
         cancelAnimationFrame(animationFrameIdRef.current);
@@ -226,6 +259,7 @@ const App: React.FC = () => {
   const handleEnumerateWebcams = useCallback(async () => {
     try {
       if (videoDevices.length === 0) {
+        // This is a small trick to trigger the permission prompt if it hasn't been granted yet.
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach(track => track.stop());
       }
