@@ -1,0 +1,7 @@
+{
+  "name": "Stream Studio",
+  "description": "A lightweight, browser-based streaming application to capture your screen, overlay your webcam, and add graphics. A simplified, reliable alternative to complex studio software.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
